@@ -1,4 +1,4 @@
-# version 0.3 alpha
+# version 0.4 alpha
 
 from sys import argv
 # noinspection PyUnresolvedReferences
@@ -45,9 +45,8 @@ class RefreshWindow:
             flag = 'ready'  # start/stop flag for reading data
             descr_flag = 'ready'  # start/stop flag for reading description
             geometries = 0  # to store all geometries (for next version)
-            n0 = 0  # current number of atoms
-            p0 = []  # current coordinates
-            el0 = []  # current list of elements
+            n0, p0, el0 = 0, [], []  # current number of atoms, coordinates, elements
+
             atom_numbers = (
                 'n', 'H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F',
                 'Ne', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K',
@@ -76,9 +75,7 @@ class RefreshWindow:
                     n = n0  # last number of atoms
                     p = p0.copy()  # last coordinates
                     el = el0.copy()  # last list of els
-                    n0 = 0
-                    p0 = []
-                    el0 = []
+                    n0, p0, el0 = 0, [], []
 
                 elif flag == 'go' and '-------' not in line:
                     s = line.split()
@@ -100,22 +97,53 @@ class RefreshWindow:
 
         return n, description, el, p
 
-    def from_xyz(self):
+    # def from_xyz(self):
+    #
+    #     n, description, p, el = 0, '', [], []
+    #
+    #     with open(self.filename, 'r') as file:
+    #         n = int(file.readline().strip())
+    #         description = file.readline().strip()
+    #
+    #         # create a coordinate array
+    #         # create an element array
+    #
+    #         for i in range(n):
+    #             s = file.readline().split()
+    #             p_i = (float(s[-3]), float(s[-2]), float(s[-1]))
+    #             p.append(p_i)
+    #             el.append(s[0])
+    #
+    #     return n, description, el, p
+
+    def from_trj_xyz(self):
 
         n, description, p, el = 0, '', [], []
+        geometries = 0
+        n0, p0, el0 = 0, [], []  # current number of atoms, coordinates, elements
 
         with open(self.filename, 'r') as file:
-            n = int(file.readline().strip())
-            description = file.readline().strip()
+            line = file.readline()
 
-            # create a coordinate array
-            # create an element array
+            while line:
+                n0 = int(line.strip())
+                description = file.readline().strip()
 
-            for i in range(n):
-                s = file.readline().split()
-                p_i = (float(s[-3]), float(s[-2]), float(s[-1]))
-                p.append(p_i)
-                el.append(s[0])
+                # create a coordinate array
+                # create an element array
+
+                for i in range(n0):
+                    s = file.readline().split()
+                    p_i = (float(s[-3]), float(s[-2]), float(s[-1]))
+                    p0.append(p_i)
+                    el0.append(s[0])
+
+                n = n0
+                p = p0.copy()
+                el = el0.copy()
+                n0, p0, el0 = 0, [], []
+                geometries += 1
+                line = file.readline()
 
         return n, description, el, p
 
@@ -124,7 +152,7 @@ class RefreshWindow:
         """Creates separate mappers for lines and spheres from a coordinate list"""
 
         if self.filename[-4:] == '.xyz':
-            n, description, el, p = self.from_xyz()
+            n, description, el, p = self.from_trj_xyz()
         elif self.filename[-4:] in ('.log', '.out'):
             n, description, el, p = self.from_gauss()
         else:
