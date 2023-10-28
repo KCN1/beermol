@@ -322,6 +322,8 @@ class RefreshWindow:
         actor1.GetProperty().LightingOff()
 
         # Create a renderer and a window
+        for xactor in self.renderer.GetActors():
+            self.renderer.RemoveActor(xactor)
 
         self.renderer.AddActor(actor)
         self.renderer.AddActor(actor1)
