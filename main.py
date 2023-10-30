@@ -1,4 +1,4 @@
-# version 0.6 alpha
+# version 0.7 alpha
 # roadmap: point radii, navigation through geometries, gamess support, clicks on atoms & bonds
 
 from sys import argv
