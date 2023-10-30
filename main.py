@@ -93,64 +93,15 @@ class RefreshWindow:
         self.window.SetSize(800, 600)
         self.window.AddRenderer(self.renderer)
 
-    # def from_gauss(self):
-    #
-    #     n, description, p, el = 0, '', [], []
-    #
-    #     with open(self.filename, 'r') as file:
-    #
-    #         flag = 'ready'  # start/stop flag for reading data
-    #         descr_flag = 'ready'  # start/stop flag for reading description
-    #         geometries = 0  # to store all geometries (for next version)
-    #         n0, p0, el0 = 0, [], []  # current number of atoms, coordinates, elements
-    #
-    #         for line in file:
-    #
-    #             if 'Coordinates' in line:
-    #                 flag = 'set'
-    #                 geometries += 1
-    #
-    #             elif flag == 'set' and '-------' in line:
-    #                 flag = 'go'
-    #
-    #             elif flag == 'go' and '-------' in line:
-    #                 flag = 'ready'
-    #                 n = n0  # last number of atoms
-    #                 p = p0.copy()  # last coordinates
-    #                 el = el0.copy()  # last list of els
-    #                 n0, p0, el0 = 0, [], []
-    #
-    #             elif flag == 'go' and '-------' not in line:
-    #                 s = line.split()
-    #                 p0.append((float(s[-3]), float(s[-2]), float(s[-1])))
-    #                 el0.append(self.__atom_numbers[int(s[1])])
-    #                 n0 += 1
-    #             else:
-    #                 pass
-    #
-    #             if descr_flag != 'done':
-    #                 if 'l101.exe' in line:
-    #                     descr_flag = 'set'
-    #                 elif descr_flag == 'set':
-    #                     descr_flag = 'go'
-    #                 elif descr_flag == 'go':
-    #                     descr_flag = 'done'
-    #                     description = line.strip()
-    #                 else:
-    #                     pass
-    #
-    #     return n, description, el, p
-
     def from_orca_gauss(self):
+
         n, description, p, el = 0, '', [], []
+        flag = 'ready'  # start/stop flag for reading the data
+        log_format = ''
+        geometries = 0  # to store all geometries (for next version)
+        n0, p0, el0 = 0, [], []  # current number of atoms, coordinates, elements
 
         with open(self.filename, 'r') as file:
-
-            flag = 'ready'  # start/stop flag for reading the data
-            # descr_flag = 'ready'  # start/stop flag for reading the description
-            log_format = ''
-            geometries = 0  # to store all geometries (for next version)
-            n0, p0, el0 = 0, [], []  # current number of atoms, coordinates, elements
 
             for line in file:   # guess the log file format
                 if 'Gaussian' in line:
@@ -161,6 +112,7 @@ class RefreshWindow:
                     break
                 # elif 'GAMESS' in line:
                 #     log_format = 'gamess'
+
             line = file.readline()
             if log_format == 'orca':    # try to find the description
                 while 'END OF INPUT' not in line:
@@ -168,41 +120,27 @@ class RefreshWindow:
                         description = line.lstrip('|  1> #').strip()
                     line = file.readline()
             elif log_format == 'gaussian':
-                current_line, previous_line = '', ''
-                while 'Z-matrix' not in line and 'orientation' not in line:
-                    previous_line = current_line
-                    current_line = line
+                curr_line, prev_line, target_line = '', '', ''
+                while 'Charge' not in line and 'orientation' not in line:
+                    target_line = prev_line
+                    prev_line = curr_line
+                    curr_line = line
                     line = file.readline()
-                if '-' in current_line:
-                    description = previous_line
+                if '-' in prev_line:
+                    description = target_line
             else:
                 description = 'Unknown format'
 
             for line in file:
-
                 if flag == 'ready':
-
                     if log_format == 'orca' and 'CARTESIAN COORDINATES (ANGSTROEM)' in line:
                         flag = 'set'
-                        # log_format = 'orca'
-
                     elif log_format == 'gaussian' and 'Coordinates (Angstroms)' in line:
                         flag = 'set'
-                        # log_format = 'gaussian'
-
                 elif flag == 'set' and '-------' in line:
                     flag = 'go'
-
                 elif flag == 'go':
-                    if not line.strip() or '-------' in line:
-                        flag = 'ready'
-                        n = n0  # last number of atoms
-                        p = p0.copy()  # last coordinates
-                        el = el0.copy()  # last list of els
-                        n0, p0, el0 = 0, [], []
-                        geometries += 1
-
-                    elif '-------' not in line:
+                    if line.strip() and '-------' not in line:
                         s = line.split()
                         p0.append((float(s[-3]), float(s[-2]), float(s[-1])))
                         if log_format == 'gaussian':
@@ -210,27 +148,15 @@ class RefreshWindow:
                         else:
                             el0.append(s[0])
                         n0 += 1
+                    else:
+                        flag = 'ready'
+                        n = n0  # last number of atoms
+                        p = p0.copy()  # last coordinates
+                        el = el0.copy()  # last list of els
+                        n0, p0, el0 = 0, [], []
+                        geometries += 1
         # print(geometries)
         return n, description, el, p
-
-    # def from_xyz(self):
-    #
-    #     n, description, p, el = 0, '', [], []
-    #
-    #     with open(self.filename, 'r') as file:
-    #         n = int(file.readline().strip())
-    #         description = file.readline().strip()
-    #
-    #         # create a coordinate array
-    #         # create an element array
-    #
-    #         for i in range(n):
-    #             s = file.readline().split()
-    #             p_i = (float(s[-3]), float(s[-2]), float(s[-1]))
-    #             p.append(p_i)
-    #             el.append(s[0])
-    #
-    #     return n, description, el, p
 
     def from_trj_xyz(self):
 
@@ -239,21 +165,18 @@ class RefreshWindow:
         n0, p0, el0 = 0, [], []  # current number of atoms, coordinates, elements
 
         with open(self.filename, 'r') as file:
-            line = file.readline()
 
+            line = file.readline()
             while line:
                 n0 = int(line.strip())
                 description = file.readline().strip()
-
                 # create a coordinate array
                 # create an element array
-
                 for i in range(n0):
                     s = file.readline().split()
                     p_i = (float(s[-3]), float(s[-2]), float(s[-1]))
                     p0.append(p_i)
                     el0.append(s[0])
-
                 n = n0
                 p = p0.copy()
                 el = el0.copy()
@@ -330,25 +253,22 @@ class RefreshWindow:
             line.GetPointIds().SetId(1, atom[1])
             lines.InsertNextCell(line)
 
-        # Create a polydata to store everything in
+        # Create a polydata to store points and lines in
         lines_poly_data = vtkPolyData()
-
         # Add the points to the dataset
         lines_poly_data.SetPoints(points)
-
         # Add the lines to the dataset
         lines_poly_data.SetLines(lines)
-
         # Create spheres for unbound atoms
         sphere = vtkSphereSource()
         sphere.SetPhiResolution(21)
         sphere.SetThetaResolution(21)
         sphere.SetRadius(.05)
-
+        # Create a polydata to store unbound points in
         unbound_point = vtkPolyData()
-
         # Set the points we created as polydata
         unbound_point.SetPoints(unconnected_points)
+
         # Create a vtkUnsignedCharArray container and store the colors in it
         named_colors = vtkNamedColors()
         colors = vtkUnsignedCharArray()
@@ -377,14 +297,12 @@ class RefreshWindow:
         # Color the lines. SetScalars() automatically associates the values in the data array passed as parameter to
         # the elements in the same indices of the cell data array on which it is called.
         lines_poly_data.GetCellData().SetScalars(colors)
-
         # Color the unbound atoms.
         unbound_point.GetCellData().SetScalars(unbound_colors)
 
         # Create mappers and actors for lines and spheres
         mapper_lines = vtkPolyDataMapper()
         mapper_lines.SetInputData(lines_poly_data)
-
         mapper_spheres = vtkGlyph3DMapper()
         mapper_spheres.SetSourceConnection(sphere.GetOutputPort())
         mapper_spheres.SetInputData(unbound_point)
@@ -392,7 +310,6 @@ class RefreshWindow:
         actor_lines = vtkActor()
         actor_lines.SetMapper(mapper_lines)
         actor_lines.GetProperty().SetLineWidth(2)
-
         actor_spheres = vtkActor()
         actor_spheres.SetMapper(mapper_spheres)
         actor_spheres.GetProperty().LightingOff()
@@ -400,13 +317,11 @@ class RefreshWindow:
         # Create a renderer and a window
         for xactor in self.renderer.GetActors():
             self.renderer.RemoveActor(xactor)
-
         self.renderer.AddActor(actor_lines)
         self.renderer.AddActor(actor_spheres)
 
         # if initial file is empty, reset the renderer when the molecule appears
         if self.reset_flag and n:
-
             self.renderer.ResetCamera()
             self.reset_flag = False
 
