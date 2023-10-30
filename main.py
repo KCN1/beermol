@@ -1,4 +1,4 @@
-# version 0.4 alpha
+# version 0.5 alpha
 
 from sys import argv
 # noinspection PyUnresolvedReferences
@@ -27,6 +27,20 @@ from vtkmodules.vtkRenderingCore import (
 
 class RefreshWindow:
 
+    __atom_numbers = (
+        'n', 'H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F',
+        'Ne', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K',
+        'Ca', 'Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu',
+        'Zn', 'Ga', 'Ge', 'As', 'Se', 'Br', 'Kr', 'Rb', 'Sr', 'Y',
+        'Zr', 'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd', 'In',
+        'Sn', 'Sb', 'Te', 'I', 'Xe', 'Cs', 'Ba', 'La', 'Ce', 'Pr',
+        'Nd', 'Pm', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm',
+        'Yb', 'Lu', 'Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au',
+        'Hg', 'Tl', 'Pb', 'Bi', 'Po', 'At', 'Rn', 'Fr', 'Ra', 'Ac',
+        'Th', 'Pa', 'U', 'Np', 'Pu', 'Am', 'Cm', 'Bk', 'Cf', 'Es',
+        'Fm', 'Md', 'No', 'Lr'
+    )
+
     def __init__(self, filename):
         self.filename = filename
         self.reset_flag = False
@@ -36,65 +50,109 @@ class RefreshWindow:
         self.window.SetSize(800, 800)
         self.window.AddRenderer(self.renderer)
 
-    def from_gauss(self):
+    # def from_gauss(self):
+    #
+    #     n, description, p, el = 0, '', [], []
+    #
+    #     with open(self.filename, 'r') as file:
+    #
+    #         flag = 'ready'  # start/stop flag for reading data
+    #         descr_flag = 'ready'  # start/stop flag for reading description
+    #         geometries = 0  # to store all geometries (for next version)
+    #         n0, p0, el0 = 0, [], []  # current number of atoms, coordinates, elements
+    #
+    #         for line in file:
+    #
+    #             if 'Coordinates' in line:
+    #                 flag = 'set'
+    #                 geometries += 1
+    #
+    #             elif flag == 'set' and '-------' in line:
+    #                 flag = 'go'
+    #
+    #             elif flag == 'go' and '-------' in line:
+    #                 flag = 'ready'
+    #                 n = n0  # last number of atoms
+    #                 p = p0.copy()  # last coordinates
+    #                 el = el0.copy()  # last list of els
+    #                 n0, p0, el0 = 0, [], []
+    #
+    #             elif flag == 'go' and '-------' not in line:
+    #                 s = line.split()
+    #                 p0.append((float(s[-3]), float(s[-2]), float(s[-1])))
+    #                 el0.append(self.__atom_numbers[int(s[1])])
+    #                 n0 += 1
+    #             else:
+    #                 pass
+    #
+    #             if descr_flag != 'done':
+    #                 if 'l101.exe' in line:
+    #                     descr_flag = 'set'
+    #                 elif descr_flag == 'set':
+    #                     descr_flag = 'go'
+    #                 elif descr_flag == 'go':
+    #                     descr_flag = 'done'
+    #                     description = line.strip()
+    #                 else:
+    #                     pass
+    #
+    #     return n, description, el, p
 
+    def from_orca_gauss(self):
         n, description, p, el = 0, '', [], []
 
         with open(self.filename, 'r') as file:
 
             flag = 'ready'  # start/stop flag for reading data
-            descr_flag = 'ready'  # start/stop flag for reading description
+            # descr_flag = 'ready'  # start/stop flag for reading description
+            log_format = 'orca'
             geometries = 0  # to store all geometries (for next version)
             n0, p0, el0 = 0, [], []  # current number of atoms, coordinates, elements
 
-            atom_numbers = (
-                'n', 'H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F',
-                'Ne', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K',
-                'Ca', 'Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu',
-                'Zn', 'Ga', 'Ge', 'As', 'Se', 'Br', 'Kr', 'Rb', 'Sr', 'Y',
-                'Zr', 'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd', 'In',
-                'Sn', 'Sb', 'Te', 'I', 'Xe', 'Cs', 'Ba', 'La', 'Ce', 'Pr',
-                'Nd', 'Pm', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm',
-                'Yb', 'Lu', 'Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au',
-                'Hg', 'Tl', 'Pb', 'Bi', 'Po', 'At', 'Rn', 'Fr', 'Ra', 'Ac',
-                'Th', 'Pa', 'U', 'Np', 'Pu', 'Am', 'Cm', 'Bk', 'Cf', 'Es',
-                'Fm', 'Md', 'No', 'Lr'
-            )
-
             for line in file:
 
-                if 'Coordinates' in line:
-                    flag = 'set'
-                    geometries += 1
+                if flag == 'ready':
+
+                    if 'CARTESIAN COORDINATES (ANGSTROEM)' in line:
+                        flag = 'set'
+                        geometries += 1
+                        log_format = 'orca'
+
+                    elif 'Coordinates (Angstroms)' in line:
+                        flag = 'set'
+                        geometries += 1
+                        log_format = 'gaussian'
 
                 elif flag == 'set' and '-------' in line:
                     flag = 'go'
 
-                elif flag == 'go' and '-------' in line:
-                    flag = 'ready'
-                    n = n0  # last number of atoms
-                    p = p0.copy()  # last coordinates
-                    el = el0.copy()  # last list of els
-                    n0, p0, el0 = 0, [], []
+                elif flag == 'go':
+                    if not line.strip() or '-------' in line:
+                        flag = 'ready'
+                        n = n0  # last number of atoms
+                        p = p0.copy()  # last coordinates
+                        el = el0.copy()  # last list of els
+                        n0, p0, el0 = 0, [], []
 
-                elif flag == 'go' and '-------' not in line:
-                    s = line.split()
-                    p0.append((float(s[-3]), float(s[-2]), float(s[-1])))
-                    el0.append(atom_numbers[int(s[1])])
-                    n0 += 1
-                else:
-                    pass
+                    elif '-------' not in line:
+                        s = line.split()
+                        p0.append((float(s[-3]), float(s[-2]), float(s[-1])))
+                        if log_format == 'gaussian':
+                            el0.append(self.__atom_numbers[int(s[1])])
+                        else:
+                            el0.append(s[0])
+                        n0 += 1
 
-                if 'l101.exe' in line:
-                    descr_flag = 'set'
-                elif descr_flag == 'set':
-                    descr_flag = 'go'
-                elif descr_flag == 'go':
-                    descr_flag = 'ready'
-                    description = line.strip()
-                else:
-                    pass
-
+                # if 'l101.exe' in line:
+                #     descr_flag = 'set'
+                # elif descr_flag == 'set':
+                #     descr_flag = 'go'
+                # elif descr_flag == 'go':
+                #     descr_flag = 'ready'
+                #     description = line.strip()
+                # else:
+                #     pass
+        # print(geometries)
         return n, description, el, p
 
     # def from_xyz(self):
@@ -154,7 +212,7 @@ class RefreshWindow:
         if self.filename[-4:] == '.xyz':
             n, description, el, p = self.from_trj_xyz()
         elif self.filename[-4:] in ('.log', '.out'):
-            n, description, el, p = self.from_gauss()
+            n, description, el, p = self.from_orca_gauss()
         else:
             n, description, el, p = 0, '', [], []
         points = vtkPoints()
@@ -343,7 +401,7 @@ def main():
     if len(argv) > 1:
         filename = argv[1]
     else:
-        print('Enter filename or drag and drop your .xyz or Gaussian .log file here:')
+        print('Enter a filename or drag and drop your .xyz or Gaussian .log file here:')
         filename = input().strip("""'" """)
 
     refresher = RefreshWindow(filename)
