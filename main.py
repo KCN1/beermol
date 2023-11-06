@@ -1,5 +1,10 @@
 # version 0.7 alpha
-# roadmap: point radii, navigation through geometries, gamess support, clicks on atoms & bonds
+# roadmap: gamess support, point radii, navigation through geometries, clicks on atoms & bonds
+# separate duplicate geometries in Gaussian log: Input orientation and Standard orientation
+# separate vtk operations and building lists of points and connectivity into different classes
+# optional: reading in Gaussian connectivity list
+# optional: implement double bonds etc.
+
 
 from sys import argv
 # noinspection PyUnresolvedReferences
