@@ -1,9 +1,7 @@
-# version 0.7 alpha
-# roadmap: gamess support, point radii, navigation through geometries, clicks on atoms & bonds
+# version 0.8 alpha
+# roadmap: Gamess support, point radii, navigation through geometries, clicks on atoms & bonds
 # separate duplicate geometries in Gaussian log: Input orientation and Standard orientation
 # separate vtk operations and building lists of points and connectivity into different classes
-# optional: reading in Gaussian connectivity list
-# optional: implement double bonds etc.
 
 
 from sys import argv
@@ -97,6 +95,7 @@ class RefreshWindow:
         self.window = vtkRenderWindow()
         self.window.SetSize(800, 600)
         self.window.AddRenderer(self.renderer)
+        self.repeat_time = 10000
 
     def from_orca_gauss(self):
 
@@ -115,24 +114,32 @@ class RefreshWindow:
                 elif 'O   R   C   A' in line:
                     log_format = 'orca'
                     break
+                elif 'Priroda' in line:
+                    log_format = 'priroda'
+                    break
                 # elif 'GAMESS' in line:
                 #     log_format = 'gamess'
 
             line = file.readline()
             if log_format == 'orca':    # try to find the description
-                while 'END OF INPUT' not in line:
+                while line and 'END OF INPUT' not in line:
                     if '|  1> #' in line:
                         description = line.lstrip('|  1> #').strip()
                     line = file.readline()
             elif log_format == 'gaussian':
                 curr_line, prev_line, target_line = '', '', ''
-                while 'Charge' not in line and 'orientation' not in line:
+                while line and 'Charge' not in line and 'orientation' not in line:
                     target_line = prev_line
                     prev_line = curr_line
                     curr_line = line
                     line = file.readline()
                 if '-' in prev_line:
                     description = target_line
+            elif log_format == 'priroda':
+                while line and 'atoms' not in line:
+                    if 'molecule input:' in line:
+                        description = line.split("'")[1]
+                    line = file.readline()
             else:
                 description = 'Unknown format'
 
@@ -142,15 +149,19 @@ class RefreshWindow:
                         flag = 'set'
                     elif log_format == 'gaussian' and 'Coordinates (Angstroms)' in line:
                         flag = 'set'
+                    elif log_format == 'priroda' and 'Atomic Coordinates:' in line:
+                        flag = 'go'
                 elif flag == 'set' and '-------' in line:
                     flag = 'go'
                 elif flag == 'go':
-                    if line.strip() and '-------' not in line:
+                    if line.strip() and '-------' not in line and '#' not in line:
                         s = line.split()
                         p0.append((float(s[-3]), float(s[-2]), float(s[-1])))
                         if log_format == 'gaussian':
                             el0.append(self.__atom_numbers[int(s[1])])
-                        else:
+                        elif log_format == 'priroda':
+                            el0.append(self.__atom_numbers[int(s[0])])
+                        elif log_format == 'orca':
                             el0.append(s[0])
                         n0 += 1
                     else:
@@ -205,6 +216,8 @@ class RefreshWindow:
 
         if not n:
             self.reset_flag = True  # ready to reset when a molecule appears
+
+        self.repeat_time = 10 * (10 + n)
 
         # create a points array for atoms
         points = vtkPoints()
@@ -353,7 +366,7 @@ def main():
     interactor.SetInteractorStyle(style)
     interactor.Initialize()
 
-    interactor.CreateRepeatingTimer(1000)
+    interactor.CreateRepeatingTimer(refresher.repeat_time)
     # noinspection PyTypeChecker
     interactor.AddObserver('TimerEvent', refresher.read_xyz)
     interactor.Start()

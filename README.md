@@ -1,17 +1,17 @@
 ## BeerMol
 
-Displays the molecular geometry from .xyz file or .log file of Gaussian or Orca in real time in a HyperChem style. 
-It can be useful for geometry optimization jobs. GAMESS / Firefly support coming soon.
+Displays the molecular geometry from an .xyz file or a .log file of Gaussian, Orca or Priroda in real time 
+in a HyperChem style. It can be useful for geometry optimization jobs. GAMESS / Firefly support coming soon.
 
-Can be run together with a calculation using a simple script, for example:
+Can be run alongside with the calculation using a simple script, for example:
 
-#!/bin/bash  
+#!/bin/sh  
 export GIN="$@"  
 export GOUT="${GIN%.*}.log"  
 touch $GOUT  
 exec python3 ~/beermol/main.py $GOUT &  
 exec g09 "$@"
 
-The script requires VTK (Visualisation Toolkit). To install, type in terminal:  
+BeerMol requires VTK (Visualisation Toolkit). To install, type in terminal:  
 
 pip install vtk
