@@ -1,10 +1,11 @@
-# version 0.8 alpha
+# version 0.9 alpha
 # roadmap: Gamess support, point radii, navigation through geometries, clicks on atoms & bonds
 # separate duplicate geometries in Gaussian log: Input orientation and Standard orientation
 # separate vtk operations and building lists of points and connectivity into different classes
 
 
 from sys import argv
+from math import dist
 # noinspection PyUnresolvedReferences
 import vtkmodules.vtkRenderingOpenGL2
 from vtkmodules.vtkCommonColor import vtkNamedColors
@@ -32,7 +33,7 @@ from vtkmodules.vtkRenderingCore import (
 class RefreshWindow:
 
     __atom_numbers = (
-        'dummy', 'H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F',
+        'Bq', 'H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F',
         'Ne', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K',
         'Ca', 'Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu',
         'Zn', 'Ga', 'Ge', 'As', 'Se', 'Br', 'Kr', 'Rb', 'Sr', 'Y',
@@ -60,7 +61,7 @@ class RefreshWindow:
             'Br': 'Yellow',
             'I': 'Red',
             'Au': 'Yellow',
-            'dummy': 'Pink'
+            'Bq': 'Pink'
         }
     __radii = {
             'H': 0.35, 'He': 0.28, 'Li': 1.28, 'Be': 0.96, 'B': 0.84,
@@ -83,7 +84,7 @@ class RefreshWindow:
             'Rn': 1.50, 'Fr': 2.60, 'Ra': 2.21, 'Ac': 2.15, 'Th': 2.06,
             'Pa': 2.00, 'U': 1.96, 'Np': 1.90, 'Pu': 1.87, 'Am': 1.80,
             'Cm': 1.69, 'Bk': 1.68, 'Cf': 1.68, 'Es': 1.65, 'Fm': 1.67,
-            'Md': 1.73, 'No': 1.76, 'Lr': 1.61, 'dummy': 0.0
+            'Md': 1.73, 'No': 1.76, 'Lr': 1.61, 'Bq': 0.0
         }
 
     def __init__(self, filename):
@@ -217,7 +218,7 @@ class RefreshWindow:
         if not n:
             self.reset_flag = True  # ready to reset when a molecule appears
 
-        self.repeat_time = 10 * (10 + n)
+        self.repeat_time = 1000 + n ** 2 // 1000
 
         # create a points array for atoms
         points = vtkPoints()
@@ -229,19 +230,22 @@ class RefreshWindow:
         for i in range(n):
             if el[i] in self.color_dict:
                 el_color[i] = self.color_dict[el[i]]
-            else:
-                pass
+        # create a list of bond lengths
+        el_set = set()
+        for el_ in el:
+            el_set.add(el_)
+        bond_lengths = {
+            (el1, el2): (self.__radii.get(el1, 1.0) + self.__radii.get(el2, 1.0)) * 1.1
+            for el1 in el_set for el2 in el_set
+            }
 
         # create a connectivity array
-        bond_length = 2.1
         connectivity = []
         connected = []
 
         for i in range(n):
             for j in range(i + 1, n):
-                if el[i] in self.__radii and el[j] in self.__radii:
-                    bond_length = (self.__radii[el[i]] + self.__radii[el[j]]) * 1.1
-                if (p[i][0] - p[j][0]) ** 2 + (p[i][1] - p[j][1]) ** 2 + (p[i][2] - p[j][2]) ** 2 < bond_length ** 2:
+                if dist(p[i], p[j]) < bond_lengths[(el[i], el[j])]:
                     # add virtual points in the middle of each bond
                     pv = ((p[i][0] + p[j][0]) / 2, (p[i][1] + p[j][1]) / 2, (p[i][2] + p[j][2]) / 2)
                     p.append(pv)
