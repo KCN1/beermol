@@ -230,14 +230,9 @@ class RefreshWindow:
         for i in range(n):
             if el[i] in self.color_dict:
                 el_color[i] = self.color_dict[el[i]]
-        # create a list of bond lengths
-        el_set = set()
-        for el_ in el:
-            el_set.add(el_)
-        bond_lengths = {
-            (el1, el2): (self.__radii.get(el1, 1.0) + self.__radii.get(el2, 1.0)) * 1.1
-            for el1 in el_set for el2 in el_set
-            }
+
+        # create a list of radii with 10% tolerance: interatomic distances will be compared to sums of radii + 10%
+        radii_incr10 = [1.1 * self.__radii[atom] for atom in el]
 
         # create a connectivity array
         connectivity = []
@@ -245,7 +240,7 @@ class RefreshWindow:
 
         for i in range(n):
             for j in range(i + 1, n):
-                if dist(p[i], p[j]) < bond_lengths[(el[i], el[j])]:
+                if dist(p[i], p[j]) < radii_incr10[i] + radii_incr10[j]:
                     # add virtual points in the middle of each bond
                     pv = ((p[i][0] + p[j][0]) / 2, (p[i][1] + p[j][1]) / 2, (p[i][2] + p[j][2]) / 2)
                     p.append(pv)
