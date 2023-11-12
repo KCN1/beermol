@@ -1,4 +1,4 @@
-# version 0.9 alpha
+# version 0.10 alpha
 # roadmap: Gamess support, point radii, navigation through geometries, clicks on atoms & bonds
 # separate duplicate geometries in Gaussian log: Input orientation and Standard orientation
 # separate vtk operations and building lists of points and connectivity into different classes
@@ -6,6 +6,7 @@
 
 from sys import argv
 from math import dist
+from scipy.spatial import KDTree
 # noinspection PyUnresolvedReferences
 import vtkmodules.vtkRenderingOpenGL2
 from vtkmodules.vtkCommonColor import vtkNamedColors
@@ -205,7 +206,7 @@ class RefreshWindow:
 
     # noinspection PyUnusedLocal
     def read_xyz(self, caller=None, event=None):
-        """Creates separate mappers for lines and spheres from a coordinate list"""
+        """Creates separate mappers for lines and spheres from a list of coordinates"""
 
         # read and translate with dictionary
         if self.filename[-4:] == '.xyz':
@@ -231,26 +232,28 @@ class RefreshWindow:
             if el[i] in self.color_dict:
                 el_color[i] = self.color_dict[el[i]]
 
-        # create a list of radii with 10% tolerance: interatomic distances will be compared to sums of radii + 10%
-        radii_incr10 = [1.1 * self.__radii[atom] for atom in el]
+        # build a KD-Tree to search for pairs of atoms within max_bond distance (sum of max(radii) + 10%)
+        radii_incr = [1.1 * self.__radii[atom] for atom in el]
+        max_bond = 2 * max(radii_incr)
+        kd_tree = KDTree(p, leafsize=200)
+        pairs = kd_tree.query_pairs(r=max_bond)
 
         # create a connectivity array
         connectivity = []
         connected = []
 
-        for i in range(n):
-            for j in range(i + 1, n):
-                if dist(p[i], p[j]) < radii_incr10[i] + radii_incr10[j]:
-                    # add virtual points in the middle of each bond
-                    pv = ((p[i][0] + p[j][0]) / 2, (p[i][1] + p[j][1]) / 2, (p[i][2] + p[j][2]) / 2)
-                    p.append(pv)
-                    points.InsertNextPoint(pv)
-                    # connect last pair of bonded atoms to the last virtual point
-                    connectivity.append([i, len(p) - 1])
-                    connectivity.append([j, len(p) - 1])
-                    # update the list of connected atoms
-                    connected.append(i)
-                    connected.append(j)
+        for (i, j) in pairs:
+            if dist(p[i], p[j]) < radii_incr[i] + radii_incr[j]:
+                # add virtual points in the middle of each bond
+                pv = ((p[i][0] + p[j][0]) / 2, (p[i][1] + p[j][1]) / 2, (p[i][2] + p[j][2]) / 2)
+                p.append(pv)
+                points.InsertNextPoint(pv)
+                # connect last pair of bonded atoms to the last virtual point
+                connectivity.append([i, len(p) - 1])
+                connectivity.append([j, len(p) - 1])
+                # update the list of connected atoms
+                connected.append(i)
+                connected.append(j)
 
         # Create a list of unbound atoms
         unconnected = []
