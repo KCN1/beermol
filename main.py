@@ -1,8 +1,9 @@
-# version 0.10 alpha
-# roadmap: Gamess support, point radii, navigation through geometries, clicks on atoms & bonds
-# separate duplicate geometries in Gaussian log: Input orientation and Standard orientation
-# separate vtk operations and building lists of points and connectivity into different classes
-
+# Version 0.11 alpha
+# Roadmap: Gamess support, navigation through geometries, clicks on atoms & bonds, sphere sizes ~ radii;
+# separate duplicate geometries in Gaussian log: Input orientation and Standard orientation;
+# separate vtk operations and building lists of points and connectivity into different classes:
+# class Molecule w/attr: n, description, el, p, connectivity (list of bonds or adjacency list), unconnected,
+# class RefreshWindow w/attr: window, renderer, filename, reset_flag, repeat_time, color_style.
 
 from sys import argv
 from math import dist
@@ -234,46 +235,44 @@ class RefreshWindow:
 
         # build a KD-Tree to search for pairs of atoms within max_bond distance (sum of max(radii) + 10%)
         radii_incr = [1.1 * self.__radii[atom] for atom in el]
+
         if n:
             max_bond = 2 * max(radii_incr)
             kd_tree = KDTree(p, leafsize=200)
-            pairs = kd_tree.query_pairs(r=max_bond)
+            prelim_pairs = kd_tree.query_pairs(r=max_bond)
         else:
-            pairs = []
+            prelim_pairs = []
 
         # create a connectivity array
         connectivity = []
-        connected = []
+        unconnected = set(range(n))
 
-        for (i, j) in pairs:
+        for (i, j) in prelim_pairs:
             if dist(p[i], p[j]) < radii_incr[i] + radii_incr[j]:
                 # add virtual points in the middle of each bond
                 pv = ((p[i][0] + p[j][0]) / 2, (p[i][1] + p[j][1]) / 2, (p[i][2] + p[j][2]) / 2)
                 p.append(pv)
                 points.InsertNextPoint(pv)
                 # connect last pair of bonded atoms to the last virtual point
-                connectivity.append([i, len(p) - 1])
-                connectivity.append([j, len(p) - 1])
-                # update the list of connected atoms
-                connected.append(i)
-                connected.append(j)
+                connectivity.append((i, len(p) - 1))
+                connectivity.append((j, len(p) - 1))
+                # update the list of unbound atoms
+                unconnected.discard(i)
+                unconnected.discard(j)
 
-        # Create a list of unbound atoms
-        unconnected = []
+        # Create an array of unbound atoms
         unconnected_points = vtkPoints()
 
-        for i in range(n):
-            if i not in connected:
-                unconnected.append(i)
-                unconnected_points.InsertNextPoint(p[i])
+        for i in unconnected:
+            unconnected_points.InsertNextPoint(p[i])
 
-        # Create a cell array to store the lines in and add the lines to it
+        # Create a cell array to store the lines
         lines = vtkCellArray()
 
-        for atom in connectivity:
+        for (i, j) in connectivity:
             line = vtkLine()
-            line.GetPointIds().SetId(0, atom[0])
-            line.GetPointIds().SetId(1, atom[1])
+            line.GetPointIds().SetId(0, i)
+            line.GetPointIds().SetId(1, j)
             lines.InsertNextCell(line)
 
         # Create a polydata to store points and lines in
@@ -296,9 +295,9 @@ class RefreshWindow:
         named_colors = vtkNamedColors()
         colors = vtkUnsignedCharArray()
         colors.SetNumberOfComponents(3)
-        for atom in connectivity:
-            curr_color_index = atom[0]
-            curr_color = el_color[curr_color_index]
+
+        for (i, j) in connectivity:
+            curr_color = el_color[i]
             try:
                 colors.InsertNextTupleValue(named_colors.GetColor3ub(curr_color))
             except AttributeError:
@@ -308,17 +307,17 @@ class RefreshWindow:
         # Same for unbound atoms:
         unbound_colors = vtkUnsignedCharArray()
         unbound_colors.SetNumberOfComponents(3)
-        for atom in unconnected:
-            curr_color_index = atom
-            curr_color = el_color[curr_color_index]
+
+        for i in unconnected:
+            curr_color = el_color[i]
             try:
                 unbound_colors.InsertNextTupleValue(named_colors.GetColor3ub(curr_color))
             except AttributeError:
                 # For compatibility with new VTK generic data arrays.
                 unbound_colors.InsertNextTypedTuple(named_colors.GetColor3ub(curr_color))
 
-        # Color the lines. SetScalars() automatically associates the values in the data array passed as parameter to
-        # the elements in the same indices of the cell data array on which it is called.
+        # Color the lines. SetScalars() automatically associates the values in the data array passed as parameter
+        # to the elements in the same indices of the cell data array on which it is called.
         lines_poly_data.GetCellData().SetScalars(colors)
         # Color the unbound atoms.
         unbound_point.GetCellData().SetScalars(unbound_colors)
@@ -337,9 +336,9 @@ class RefreshWindow:
         actor_spheres.SetMapper(mapper_spheres)
         actor_spheres.GetProperty().LightingOff()
 
-        # Create a renderer and a window
-        for xactor in self.renderer.GetActors():
-            self.renderer.RemoveActor(xactor)
+        # Create a renderer and a window, remove old actors
+        for old_actor in self.renderer.GetActors():
+            self.renderer.RemoveActor(old_actor)
         self.renderer.AddActor(actor_lines)
         self.renderer.AddActor(actor_spheres)
 
