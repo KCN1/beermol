@@ -234,9 +234,12 @@ class RefreshWindow:
 
         # build a KD-Tree to search for pairs of atoms within max_bond distance (sum of max(radii) + 10%)
         radii_incr = [1.1 * self.__radii[atom] for atom in el]
-        max_bond = 2 * max(radii_incr)
-        kd_tree = KDTree(p, leafsize=200)
-        pairs = kd_tree.query_pairs(r=max_bond)
+        if n:
+            max_bond = 2 * max(radii_incr)
+            kd_tree = KDTree(p, leafsize=200)
+            pairs = kd_tree.query_pairs(r=max_bond)
+        else:
+            pairs = []
 
         # create a connectivity array
         connectivity = []
