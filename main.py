@@ -1,40 +1,19 @@
-# Version 0.11 alpha
-# Roadmap: Gamess support, navigation through geometries, clicks on atoms & bonds, sphere sizes ~ radii;
-# separate duplicate geometries in Gaussian log: Input orientation and Standard orientation;
-# separate vtk operations and building lists of points and connectivity into different classes:
-# class Molecule w/attr: n, description, el, p, connectivity (list of bonds or adjacency list), unconnected,
-# class RefreshWindow w/attr: window, renderer, filename, reset_flag, repeat_time, color_style.
+# main process does not stop if window is closed while running read_xyz()
+# adjust timer duration depending on the size, add window description
+# add a monitor for when the molecule appears
 
-from sys import argv
+from gc import collect as gc_collect
+from sys import argv as sys_argv, exit as sys_exit
 from math import dist
 from scipy.spatial import KDTree
-# noinspection PyUnresolvedReferences
-import vtkmodules.vtkRenderingOpenGL2
-from vtkmodules.vtkCommonColor import vtkNamedColors
-from vtkmodules.vtkFiltersSources import vtkSphereSource
-from vtkmodules.vtkInteractionStyle import vtkInteractorStyleTrackballCamera
-from vtkmodules.vtkCommonCore import (
-    vtkPoints,
-    vtkUnsignedCharArray
-)
-from vtkmodules.vtkCommonDataModel import (
-    vtkCellArray,
-    vtkLine,
-    vtkPolyData
-)
-from vtkmodules.vtkRenderingCore import (
-    vtkActor,
-    vtkPolyDataMapper,
-    vtkGlyph3DMapper,
-    vtkRenderWindow,
-    vtkRenderWindowInteractor,
-    vtkRenderer
-)
+import vtk
+from PyQt5 import QtCore, QtWidgets
+from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 
 
-class RefreshWindow:
+class MoleculeRenderer:
 
-    __atom_numbers = (
+    _atom_numbers = (
         'Bq', 'H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F',
         'Ne', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K',
         'Ca', 'Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu',
@@ -47,7 +26,7 @@ class RefreshWindow:
         'Th', 'Pa', 'U', 'Np', 'Pu', 'Am', 'Cm', 'Bk', 'Cf', 'Es',
         'Fm', 'Md', 'No', 'Lr'
     )
-    __hyper_colors = {
+    _hyper_colors = {
             'C': 'Cyan',
             'N': 'Blue',
             'O': 'Red',
@@ -65,7 +44,7 @@ class RefreshWindow:
             'Au': 'Yellow',
             'Bq': 'Pink'
         }
-    __radii = {
+    _radii = {
             'H': 0.35, 'He': 0.28, 'Li': 1.28, 'Be': 0.96, 'B': 0.84,
             'C': 0.76, 'N': 0.71, 'O': 0.66, 'F': 0.57, 'Ne': 0.58,
             'Na': 1.66, 'Mg': 1.41, 'Al': 1.21, 'Si': 1.11, 'P': 1.07,
@@ -90,15 +69,9 @@ class RefreshWindow:
         }
 
     def __init__(self, filename):
-        self.color_dict = self.__hyper_colors
+        self.color_dict = self._hyper_colors
         self.filename = filename
-        self.reset_flag = False
-        self.renderer = vtkRenderer()
-        self.renderer.SetBackground(0.0, 0.0, 0.0)
-        self.window = vtkRenderWindow()
-        self.window.SetSize(800, 600)
-        self.window.AddRenderer(self.renderer)
-        self.repeat_time = 10000
+        self.ren = vtk.vtkRenderer()
 
     def from_orca_gauss(self):
 
@@ -161,9 +134,9 @@ class RefreshWindow:
                         s = line.split()
                         p0.append((float(s[-3]), float(s[-2]), float(s[-1])))
                         if log_format == 'gaussian':
-                            el0.append(self.__atom_numbers[int(s[1])])
+                            el0.append(self._atom_numbers[int(s[1])])
                         elif log_format == 'priroda':
-                            el0.append(self.__atom_numbers[int(s[0])])
+                            el0.append(self._atom_numbers[int(s[0])])
                         elif log_format == 'orca':
                             el0.append(s[0])
                         n0 += 1
@@ -174,7 +147,7 @@ class RefreshWindow:
                         el = el0.copy()  # last list of els
                         n0, p0, el0 = 0, [], []
                         geometries += 1
-        # print(geometries)
+
         return n, description, el, p
 
     def from_trj_xyz(self):
@@ -202,11 +175,10 @@ class RefreshWindow:
                 n0, p0, el0 = 0, [], []
                 geometries += 1
                 line = file.readline()
-        # print(geometries)
+
         return n, description, el, p
 
-    # noinspection PyUnusedLocal
-    def read_xyz(self, caller=None, event=None):
+    def read_xyz(self):
         """Creates separate mappers for lines and spheres from a list of coordinates"""
 
         # read and translate with dictionary
@@ -217,13 +189,8 @@ class RefreshWindow:
         else:
             n, description, el, p = 0, '', [], []
 
-        if not n:
-            self.reset_flag = True  # ready to reset when a molecule appears
-
-        self.repeat_time = 1000 + n ** 2 // 1000
-
         # create a points array for atoms
-        points = vtkPoints()
+        points = vtk.vtkPoints()
         for atom in p:
             points.InsertNextPoint(atom)
 
@@ -234,7 +201,7 @@ class RefreshWindow:
                 el_color[i] = self.color_dict[el[i]]
 
         # build a KD-Tree to search for pairs of atoms within max_bond distance (sum of max(radii) + 10%)
-        radii_incr = [1.1 * self.__radii[atom] for atom in el]
+        radii_incr = [1.1 * self._radii[atom] for atom in el]
 
         if n:
             max_bond = 2 * max(radii_incr)
@@ -261,39 +228,39 @@ class RefreshWindow:
                 unconnected.discard(j)
 
         # Create an array of unbound atoms
-        unconnected_points = vtkPoints()
+        unconnected_points = vtk.vtkPoints()
 
         for i in unconnected:
             unconnected_points.InsertNextPoint(p[i])
 
         # Create a cell array to store the lines
-        lines = vtkCellArray()
+        lines = vtk.vtkCellArray()
 
         for (i, j) in connectivity:
-            line = vtkLine()
+            line = vtk.vtkLine()
             line.GetPointIds().SetId(0, i)
             line.GetPointIds().SetId(1, j)
             lines.InsertNextCell(line)
 
         # Create a polydata to store points and lines in
-        lines_poly_data = vtkPolyData()
+        lines_poly_data = vtk.vtkPolyData()
         # Add the points to the dataset
         lines_poly_data.SetPoints(points)
         # Add the lines to the dataset
         lines_poly_data.SetLines(lines)
         # Create spheres for unbound atoms
-        sphere = vtkSphereSource()
+        sphere = vtk.vtkSphereSource()
         sphere.SetPhiResolution(21)
         sphere.SetThetaResolution(21)
         sphere.SetRadius(.05)
         # Create a polydata to store unbound points in
-        unbound_point = vtkPolyData()
+        unbound_point = vtk.vtkPolyData()
         # Set the points we created as polydata
         unbound_point.SetPoints(unconnected_points)
 
         # Create a vtkUnsignedCharArray container and store the colors in it
-        named_colors = vtkNamedColors()
-        colors = vtkUnsignedCharArray()
+        named_colors = vtk.vtkNamedColors()
+        colors = vtk.vtkUnsignedCharArray()
         colors.SetNumberOfComponents(3)
 
         for (i, j) in connectivity:
@@ -305,7 +272,7 @@ class RefreshWindow:
                 colors.InsertNextTypedTuple(named_colors.GetColor3ub(curr_color))
 
         # Same for unbound atoms:
-        unbound_colors = vtkUnsignedCharArray()
+        unbound_colors = vtk.vtkUnsignedCharArray()
         unbound_colors.SetNumberOfComponents(3)
 
         for i in unconnected:
@@ -323,57 +290,92 @@ class RefreshWindow:
         unbound_point.GetCellData().SetScalars(unbound_colors)
 
         # Create mappers and actors for lines and spheres
-        mapper_lines = vtkPolyDataMapper()
+        mapper_lines = vtk.vtkPolyDataMapper()
         mapper_lines.SetInputData(lines_poly_data)
-        mapper_spheres = vtkGlyph3DMapper()
+
+        mapper_spheres = vtk.vtkGlyph3DMapper()
         mapper_spheres.SetSourceConnection(sphere.GetOutputPort())
         mapper_spheres.SetInputData(unbound_point)
 
-        actor_lines = vtkActor()
+        actor_lines = vtk.vtkActor()
+        actor_spheres = vtk.vtkActor()
+
         actor_lines.SetMapper(mapper_lines)
         actor_lines.GetProperty().SetLineWidth(2)
-        actor_spheres = vtkActor()
+
         actor_spheres.SetMapper(mapper_spheres)
         actor_spheres.GetProperty().LightingOff()
 
-        # Create a renderer and a window, remove old actors
-        for old_actor in self.renderer.GetActors():
-            self.renderer.RemoveActor(old_actor)
-        self.renderer.AddActor(actor_lines)
-        self.renderer.AddActor(actor_spheres)
+        for old_actor in self.ren.GetActors():
+            self.ren.RemoveActor(old_actor)
 
-        # if initial file is empty, reset the renderer when the molecule appears
-        if self.reset_flag and n:
-            self.renderer.ResetCamera()
+        self.ren.AddActor(actor_lines)
+        self.ren.AddActor(actor_spheres)
+        gc_collect()
+
+
+class MainWindow(QtWidgets.QMainWindow):
+
+    def __init__(self, parent=None, molecule=None):
+        QtWidgets.QMainWindow.__init__(self, parent)
+
+        self.molecule = molecule
+        self.frame = QtWidgets.QFrame()
+
+        self.vl = QtWidgets.QVBoxLayout()
+        self.vtkWidget = MyQVTKRenderWindowInteractor(self.frame)
+        self.vl.addWidget(self.vtkWidget)
+
+        self.window = self.vtkWidget.GetRenderWindow()
+        self.window.AddRenderer(self.molecule.ren)
+        self.iren = self.window.GetInteractor()
+
+        self.frame.setLayout(self.vl)
+        self.setCentralWidget(self.frame)
+        self.show()
+        self.resize(800, 600)
+        self.iren.SetInteractorStyle(vtk.vtkInteractorStyleTrackballCamera())
+        self.iren.Initialize()
+
+        self.repeat_time = 10000
+        self.reset_flag = True
+        self.refresh()  # here to add a monitor for when the molecule appears
+        self.vtkWidget.CreateRepeatingTimer(self.repeat_time)
+        self.vtkWidget.AddObserver('TimerEvent', self.refresh)
+
+    def refresh(self, caller=None, event=None):
+        self.molecule.read_xyz()
+        if self.reset_flag:
+            self.molecule.ren.ResetCamera()
             self.reset_flag = False
-
-        self.window.SetWindowName(description)
         self.window.Render()
 
 
+class MyQVTKRenderWindowInteractor(QVTKRenderWindowInteractor):
+    _TimerDuration = 100
+
+    def CreateTimer(self, obj, event):
+        self._Timer.start(self._TimerDuration)  # self._Timer.start(10) in original
+
+    def CreateRepeatingTimer(self, duration):
+        self._TimerDuration = duration
+        super().GetRenderWindow().GetInteractor().CreateRepeatingTimer(duration)
+
+
 def main():
-    # load coordinates from xyz file
-    if len(argv) > 1:
-        filename = argv[1]
+
+    app = QtWidgets.QApplication(sys_argv)
+
+    if len(sys_argv) > 1:
+        filename = sys_argv[1]
     else:
         print('Enter a filename or drag and drop your .xyz or Gaussian .log file here:')
         filename = input().strip("""'" """)
 
-    refresher = RefreshWindow(filename)
+    mol_renderer = MoleculeRenderer(filename)
+    mol_window = MainWindow(molecule=mol_renderer)
 
-    refresher.read_xyz()
-
-    # Create an interactor and an observer
-    interactor = vtkRenderWindowInteractor()
-    interactor.SetRenderWindow(refresher.window)
-    style = vtkInteractorStyleTrackballCamera()
-    interactor.SetInteractorStyle(style)
-    interactor.Initialize()
-
-    interactor.CreateRepeatingTimer(refresher.repeat_time)
-    # noinspection PyTypeChecker
-    interactor.AddObserver('TimerEvent', refresher.read_xyz)
-    interactor.Start()
+    sys_exit(app.exec_())
 
 
 if __name__ == "__main__":
