@@ -1,2 +1,3 @@
-vtk
-scipy
+vtk~=9.2.6
+scipy~=1.10.1
+PyQt5~=5.15.10
