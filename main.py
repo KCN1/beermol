@@ -160,8 +160,11 @@ class MoleculeRenderer:
 
             line = file.readline()
             while line:
-                n0 = int(line.strip())
-                description = file.readline().strip()
+                try:
+                    n0 = int(line.strip())
+                    description = file.readline().strip()
+                except Exception:
+                    break
                 # create a coordinate array
                 # create an element array
                 for i in range(n0):
