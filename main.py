@@ -9,6 +9,9 @@ from scipy.spatial import KDTree
 import vtk
 from PyQt5 import QtCore, QtWidgets
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+import logging
+
+logging.basicConfig(filename='beermol_logger.txt', level=logging.INFO)
 
 
 class MoleculeRenderer:
@@ -110,7 +113,8 @@ class MoleculeRenderer:
                     curr_line = line
                     line = file.readline()
                 if '-' in prev_line:
-                    description = target_line
+                    description = target_line.strip()
+                    logging.info(description)
             elif log_format == 'priroda':
                 while line and 'atoms' not in line:
                     if 'molecule input:' in line:
@@ -370,10 +374,11 @@ def main():
     app = QtWidgets.QApplication(sys_argv)
 
     if len(sys_argv) > 1:
-        filename = sys_argv[1]
+        filename = ' '.join(sys_argv[1:])
     else:
         print('Enter a filename or drag and drop your .xyz or Gaussian .log file here:')
         filename = input().strip("""'" """)
+    logging.info(filename)
 
     mol_renderer = MoleculeRenderer(filename)
     mol_window = MainWindow(molecule=mol_renderer)
