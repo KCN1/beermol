@@ -9,6 +9,8 @@ from scipy.spatial import KDTree
 import vtk
 from PyQt5 import QtCore, QtWidgets
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+from argparse import ArgumentParser
+from pathlib import Path
 import logging
 
 logging.basicConfig(filename='beermol_logger.txt', level=logging.INFO)
@@ -167,7 +169,7 @@ class MoleculeRenderer:
                 try:
                     n0 = int(line.strip())
                     description = file.readline().strip()
-                except Exception:
+                except ValueError:
                     break
                 # create a coordinate array
                 # create an element array
@@ -189,9 +191,9 @@ class MoleculeRenderer:
         """Creates separate mappers for lines and spheres from a list of coordinates"""
 
         # read and translate with dictionary
-        if self.filename[-4:] == '.xyz':
+        if self.filename.suffix == '.xyz':
             n, description, el, p = self.from_trj_xyz()
-        elif self.filename[-4:] in ('.log', '.out'):
+        elif self.filename.suffix in ('.log', '.out'):
             n, description, el, p = self.from_orca_gauss()
         else:
             n, description, el, p = 0, '', [], []
@@ -373,12 +375,20 @@ def main():
 
     app = QtWidgets.QApplication(sys_argv)
 
-    if len(sys_argv) > 1:
-        filename = ' '.join(sys_argv[1:])
+    # if len(sys_argv) > 1:
+    #     filename = ' '.join(sys_argv[1:])
+    # else:
+    #     print('Enter a filename or drag and drop your .xyz or Gaussian .log file here:')
+    #     filename = input().strip("""'" """)
+
+    parser = ArgumentParser()
+    parser.add_argument("file_path", nargs='?', type=Path)
+    p = parser.parse_args()
+    if p.file_path and p.file_path.is_file():
+        filename = p.file_path
     else:
         print('Enter a filename or drag and drop your .xyz or Gaussian .log file here:')
-        filename = input().strip("""'" """)
-    logging.info(filename)
+        filename = Path(input().strip("""'" """))
 
     mol_renderer = MoleculeRenderer(filename)
     mol_window = MainWindow(molecule=mol_renderer)
